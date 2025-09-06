@@ -22,21 +22,10 @@ def load_dataset(file_path: str) -> pd.DataFrame:
 
 
 def save_artifact(data, filename, output_dir):
-    """
-    Save the artifact to the specified output directory.
-    
-    Args:
-        data: The data to save (e.g., DataFrame, string).
-        filename (str): The name of the file to save.
-        output_dir (str or Path): The directory to save the file in.
-    """
-    # Ensure output directory exists
+    """Save artifacts (DataFrame, text, dict, etc.) into the output directory."""
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Construct full file path
     filepath = os.path.join(output_dir, filename)
     
-    # Handle different data types
     if isinstance(data, pd.DataFrame):
         data.to_csv(filepath, index=False)
     elif isinstance(data, (str, dict, list)):
@@ -44,12 +33,12 @@ def save_artifact(data, filename, output_dir):
             if isinstance(data, str):
                 f.write(data)
             else:
-                import json
                 json.dump(data, f, indent=4)
     else:
         raise ValueError(f"Unsupported data type for {filename}: {type(data)}")
     
     return filepath
+
 
 def clean_data(df: pd.DataFrame, operations: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, List[str]]:
     """Generic data cleaning function"""
@@ -87,8 +76,9 @@ def clean_data(df: pd.DataFrame, operations: List[Dict[str, Any]]) -> Tuple[pd.D
 
     return df_clean, log_entries
 
+
 def generate_basic_insights(df: pd.DataFrame) -> Dict[str, Any]:
-    """Generate basic insights from any DataFrame"""
+    """Generate richer insights from any DataFrame"""
     insights = {
         "dataset_overview": {
             "shape": df.shape,
@@ -97,6 +87,32 @@ def generate_basic_insights(df: pd.DataFrame) -> Dict[str, Any]:
         },
         "summary_statistics": df.describe(include='all').to_dict(),
         "missing_values": df.isnull().sum().to_dict(),
+        "missing_percent": (df.isnull().mean() * 100).round(2).to_dict(),
         "sample_data": df.head(5).to_dict()
     }
+
+    # Correlations
+    if not df.select_dtypes(include=[np.number]).empty:
+        insights["correlations"] = df.corr(numeric_only=True).round(3).to_dict()
+
+    # Group-by summaries (if categorical + numeric)
+    categorical_cols = df.select_dtypes(include=["object", "category"]).columns
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    groupby_insights = {}
+    for cat_col in categorical_cols:
+        groupby_insights[cat_col] = df.groupby(cat_col)[numeric_cols].mean().round(2).to_dict()
+    if groupby_insights:
+        insights["groupby_insights"] = groupby_insights
+
+    # Ranges for numeric
+    ranges = {}
+    for col in numeric_cols:
+        ranges[col] = {
+            "min": float(df[col].min()),
+            "max": float(df[col].max()),
+            "range": float(df[col].max() - df[col].min())
+        }
+    if ranges:
+        insights["numeric_ranges"] = ranges
+
     return insights
