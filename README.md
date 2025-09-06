@@ -1,4 +1,5 @@
 
+
 # RTGS AI Analyst - Data-Agnostic Analysis Tool
 
 ## Overview
@@ -83,3 +84,5 @@ After running the analysis, check the `artifacts/` directory for:
 3. `key_insights.json` - Statistical insights
 4. `analysis_report.md` - Comprehensive analysis report
 
+=======
+# RTGS-AI-Analyst-Project
