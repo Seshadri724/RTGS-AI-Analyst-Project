@@ -4,24 +4,44 @@ import requests
 import pandas as pd
 import time
 import random
-from typing import Dict, Any, List
+import numpy as np
+from typing import Dict, Any, List, Tuple
 from src.config import config
 from src.tools import clean_data, generate_basic_insights
+from src.validation_manager import ValidationManager
 
 logger = logging.getLogger(__name__)
 
 class AnalystAgent:
     def __init__(self):
         self.system_prompt = self._create_system_prompt()
+        self.validation_manager = ValidationManager()
 
     def _create_system_prompt(self) -> str:
-        return """You are an expert data analyst AI. Analyze ANY dataset and provide a structured, professional report."""
+        return """You are an expert data analyst AI. Analyze ANY dataset and provide a structured, professional report.
+        IMPORTANT: Only report insights that are actually supported by the data. Do not make up or assume information.
+        If certain analyses aren't possible with the available data, clearly state this limitation."""
 
     def analyze(self, df: pd.DataFrame, dataset_name: str) -> Dict[str, Any]:
-        """Main analysis method. Sequences automated cleaning and LLM analysis."""
+        """Main analysis method with validation."""
+        # Store original for validation
+        df_original = df.copy()
+        
         cleaning_ops = self._determine_cleaning_ops(df)
         cleaned_df, cleaning_log = clean_data(df, cleaning_ops)
+        
+        # Validate cleaning operations
+        validation_results = []
+        for op in cleaning_ops:
+            valid, message = self.validation_manager.validate_cleaning_operation(df_original, cleaned_df, op)
+            validation_results.append(f"{'✅' if valid else '❌'} {message}")
+        
         insights = generate_basic_insights(cleaned_df)
+        
+        # Validate insights
+        insights_valid, insights_errors = self.validation_manager.validate_insights(insights, cleaned_df)
+        if not insights_valid:
+            logger.warning(f"Insights validation failed: {insights_errors}")
 
         context = {
             "dataset_name": dataset_name,
@@ -30,10 +50,10 @@ class AnalystAgent:
             "dtypes": {col: str(dtype) for col, dtype in cleaned_df.dtypes.items()},
             "sample_data": cleaned_df.head(3).to_dict(),
             "cleaning_log": cleaning_log,
-            "basic_insights": insights
+            "basic_insights": insights,
+            "validation_results": validation_results
         }
 
-        # Truncate large sample data to avoid token limits
         context = self._truncate_large_data(context)
 
         prompt = self._build_prompt(context)
@@ -46,7 +66,6 @@ class AnalystAgent:
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1200}
         }
 
-        # Check if payload is too large
         if self._is_payload_too_large(payload):
             logger.warning("Payload too large for API, using fallback analysis")
             analysis_report = self._generate_fallback_analysis(cleaned_df, context)
@@ -57,15 +76,37 @@ class AnalystAgent:
                 logger.error(f"API analysis failed: {e}")
                 analysis_report = self._generate_fallback_analysis(cleaned_df, context)
 
-        return {
+        # Check for hallucinations
+        hallucinations = self.validation_manager.detect_hallucinations(analysis_report, insights)
+        if hallucinations:
+            logger.warning(f"Potential hallucinations detected: {hallucinations}")
+            analysis_report += f"\n\n## Validation Notes\nPotential issues detected:\n" + "\n".join(f"- {h}" for h in hallucinations)
+
+        # Check consistency with previous runs
+        results = {
             "cleaned_data": cleaned_df,
             "cleaning_log": cleaning_log,
             "insights": insights,
-            "analysis_report": analysis_report
+            "analysis_report": analysis_report,
+            "validation_results": validation_results,
+            "hallucination_warnings": hallucinations
         }
+        
+        consistency_warnings = self.validation_manager.check_consistency(results, dataset_name)
+        if consistency_warnings:
+            logger.warning(f"Consistency issues: {consistency_warnings}")
+            results["consistency_warnings"] = consistency_warnings
+
+        return results
+
+    def stress_test(self, df: pd.DataFrame, dataset_name: str, messiness_level: float = 0.3) -> Dict[str, Any]:
+        """Run analysis on intentionally messy data."""
+        messy_df = self.validation_manager.create_messy_dataset(df, messiness_level)
+        logger.info(f"Created messy dataset: {messy_df.shape} (original: {df.shape})")
+        return self.analyze(messy_df, f"STRESS_TEST_{dataset_name}")
 
     def _truncate_large_data(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Truncate large data to avoid API token limits"""
+        """Truncate large data to avoid API token limits."""
         context = context.copy()
         
         # Truncate sample data if too large
@@ -84,6 +125,7 @@ class AnalystAgent:
         return context
 
     def _build_prompt(self, context: Dict[str, Any]) -> str:
+        """Build the prompt for API analysis."""
         context_str = json.dumps(context, indent=2, ensure_ascii=False)
         
         # Ensure prompt isn't too long
@@ -102,6 +144,7 @@ class AnalystAgent:
         )
 
     def _call_google_ai_api(self, payload: Dict[str, Any], headers: Dict[str, str]) -> str:
+        """Call Google AI Studio API with exponential backoff."""
         api_url = f"{config.GOOGLE_API_URL}?key={config.GOOGLE_AI_STUDIO_API_KEY}"
         
         for attempt in range(3):
@@ -133,12 +176,12 @@ class AnalystAgent:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == 2:  # Final attempt
                     logger.error("All attempts to call Google AI Studio API failed.")
-                    raise Exception("API call failed after 3 attempts")
+                    raise Exception(f"API call failed after 3 attempts: {str(e)}")
         
         raise Exception("All attempts to call Google AI Studio API failed.")
 
     def _is_payload_too_large(self, payload: Dict[str, Any]) -> bool:
-        """Estimate if payload exceeds API limits"""
+        """Estimate if payload exceeds API limits."""
         try:
             payload_str = json.dumps(payload)
             return len(payload_str) > 30000  # Conservative estimate
@@ -146,7 +189,7 @@ class AnalystAgent:
             return False
 
     def _generate_fallback_analysis(self, df: pd.DataFrame, context: Dict[str, Any]) -> str:
-        """Generate basic analysis locally when API fails"""
+        """Generate basic analysis locally when API fails."""
         insights = context.get('basic_insights', {})
         
         return f"""# Fallback Analysis Report
@@ -177,6 +220,7 @@ class AnalystAgent:
 """
 
     def _determine_cleaning_ops(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """Determine cleaning operations for the dataset."""
         operations = []
         for col in df.columns:
             null_count = df[col].isnull().sum()
@@ -191,6 +235,7 @@ class AnalystAgent:
         return operations
 
     def _suggest_fill_value(self, series: pd.Series) -> Any:
+        """Suggest a fill value for missing data."""
         if pd.api.types.is_numeric_dtype(series):
             return series.median()
         return series.mode()[0] if not series.mode().empty else "Unknown"

@@ -11,15 +11,34 @@ from src.config import config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def validate_dataframe_integrity(df: pd.DataFrame) -> Tuple[bool, List[str]]:
+    """Validate that a DataFrame is structurally sound"""
+    issues = []
+    
+    if df is None:
+        return False, ["DataFrame is None"]
+    
+    if df.empty:
+        return False, ["DataFrame is empty"]
+    
+    if len(df.columns) == 0:
+        return False, ["DataFrame has no columns"]
+    
+    # Check for infinite values
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        if np.any(np.isinf(df[col])):
+            issues.append(f"Column {col} contains infinite values")
+    
+    return len(issues) == 0, issues
+
 def load_dataset(file_path: str) -> pd.DataFrame:
     """Load dataset from CSV file"""
     try:
         df = pd.read_csv(file_path)
-        print(f"✅ Loaded dataset with shape: {df.shape}")
-        return df
+        return df  # Removed print statement to avoid redundant console output
     except Exception as e:
         raise Exception(f"Failed to load dataset: {str(e)}")
-
 
 def save_artifact(data, filename, output_dir):
     """Save artifacts (DataFrame, text, dict, etc.) into the output directory."""
@@ -38,7 +57,6 @@ def save_artifact(data, filename, output_dir):
         raise ValueError(f"Unsupported data type for {filename}: {type(data)}")
     
     return filepath
-
 
 def clean_data(df: pd.DataFrame, operations: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, List[str]]:
     """Generic data cleaning function"""
@@ -75,7 +93,6 @@ def clean_data(df: pd.DataFrame, operations: List[Dict[str, Any]]) -> Tuple[pd.D
             logger.error(f"Error executing operation {op}: {e}")
 
     return df_clean, log_entries
-
 
 def generate_basic_insights(df: pd.DataFrame) -> Dict[str, Any]:
     """Generate richer insights from any DataFrame"""
