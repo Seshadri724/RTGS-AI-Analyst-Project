@@ -1,88 +1,176 @@
+# Data Agnostic Analyst 🤖📊
 
+A robust, AI-powered data analysis tool that automatically cleans, validates, and generates insights from any structured dataset. Built with **Streamlit** for interactive exploration and a **CLI** for batch processing.
 
-# RTGS AI Analyst - Data-Agnostic Analysis Tool
+---
 
-## Overview
-The RTGS AI Analyst is an automated data analysis system designed to work with any tabular dataset. It performs comprehensive data cleaning, insight generation, and reporting without requiring domain-specific configuration. This tool is particularly valuable for policymakers and analysts working with diverse datasets like Telangana's RTGS data.
+## ✨ Features
 
-## Key Features
-- 🧹 **Automatic Data Cleaning**: Handles missing values, duplicates, and type conversions
-- 🔍 **Smart Insight Generation**: Identifies patterns, trends, and correlations
-- 📊 **Policy Recommendations**: Provides actionable insights for decision-makers
-- 📁 **Artifact Generation**: Produces cleaned data, logs, insights, and reports
-- 🖥️ **CLI Interface**: Simple command-line operation
+- 🔍 **Automatic Data Cleaning:** Intelligent handling of missing values, duplicates, and data type conversions
+- 🤖 **AI-Powered Analysis:** Gemini AI integration for comprehensive data insights and reporting
+- ✅ **Validation System:** Built-in validation manager to detect hallucinations and ensure data integrity
+- 📊 **Interactive Dashboard:** Streamlit-based UI with visualizations and data quality metrics
+- 🧪 **Stress Testing:** Test the system with intentionally messy data
+- 🌐 **Cross-Dataset Testing:** Validate performance across multiple domains
 
-## Project Structure
-```
-rtgs-ai-analyst/
-├── artifacts/          # Generated outputs
-├── data/               # Input datasets
-├── src/                # Source code
-├── main.py             # CLI interface
-├── requirements.txt    # Python dependencies
-├── .env                # API keys (NEVER commit!)
-└── README.md           # Project documentation
-```
+---
 
-## Setup Instructions
+## 🚀 Quick Start
 
-### 1. Clone Repository
+### Prerequisites
+
+- Python 3.8+
+- Google AI Studio API key (for Gemini AI integration)
+
+### Installation
+
+Clone the repository:
+
 ```bash
-git clone https://github.com/your-username/rtgs-ai-analyst.git
-cd rtgs-ai-analyst
+https://github.com/Seshadri724/RTGS-AI-Analyst-Project.git
+cd data-agnostic-analyst
 ```
 
-### 2. Create Virtual Environment
-```bash
-# Linux/Mac
-python -m venv venv
-source venv/bin/activate
+Install dependencies:
 
-# Windows
-python -m venv venv
-.\venv\Scripts\activate
-```
-
-### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment
-Create a `.env` file in the project root with your GOOGLE AI STUDIO API KEY:
-```env
-GOOGLE_AI_STUDIO_API_KEY=your_api_key_here
-```
+Set up environment variables:
 
-### 5. Add Your Dataset
-Place your CSV file in the `data/` directory:
 ```bash
-cp /path/to/your/dataset.csv data/sample_data.csv
+cp .env.example .env
+# Add your GOOGLE_AI_STUDIO_API_KEY to the .env file
 ```
 
-## Basic Usage
+---
 
-### Inspect Dataset
+## Usage
+
+### Web UI (Recommended)
+
 ```bash
-python main.py inspect
+python main.py ui
 ```
+Access the interface at [http://localhost:8501](http://localhost:8501)
 
-### Run Full Analysis
+### Command Line
+
 ```bash
-python main.py run
+# Basic analysis
+python main.py run data/sample_data.csv
+
+# Stress testing
+python main.py stress-test data/sample_data.csv --messiness 0.4
+
+# Cross-dataset testing
+python main.py cross-test
+
+# Dataset inspection
+python main.py inspect data/sample_data.csv
 ```
 
-### Specify Custom Dataset
+---
+
+## 📁 Project Structure
+
+```
+data-agnostic-analyst/
+├── artifacts/              # Generated analysis outputs
+├── data/                   # Sample and uploaded datasets
+├── src/                    # Core application code
+│   ├── analyst_agent.py        # Main analysis engine with AI integration
+│   ├── config.py               # Configuration management
+│   ├── dashboard.py            # Streamlit UI components
+│   ├── tools.py                # Data loading and utility functions
+│   └── validation_manager.py   # Data validation and integrity checks
+├── stress_test/            # Stress test results
+├── app.py                  # Streamlit application
+├── main.py                 # CLI interface
+└── requirements.txt        # Python dependencies
+```
+
+---
+
+## 🔧 Core Components
+
+### Analyst Agent (`analyst_agent.py`)
+- Cleans datasets based on detected issues
+- Generates comprehensive insights using Gemini AI
+- Validates results and detects hallucinations
+- Calculates confidence scores for analysis quality
+
+### Validation Manager (`validation_manager.py`)
+- Ensures data integrity through:
+  - Cleaning operation validation
+  - Insight verification against actual data
+  - Hallucination detection in AI-generated reports
+  - Cross-dataset consistency checking
+
+### Dashboard (`dashboard.py`)
+- Interactive Streamlit components featuring:
+  - Data quality metrics with glassmorphism design
+  - Interactive visualizations (scatter plots, histograms, heatmaps)
+  - Validation results display
+  - Download functionality for cleaned data
+
+---
+
+## 📊 Sample Outputs
+
+The system generates several artifacts for each analysis:
+
+- **Cleaned Data CSV:** Processed dataset with missing values handled and duplicates removed
+- **Analysis Report MD:** Comprehensive AI-generated insights with validation notes
+- **Cleaning Log MD:** Record of all data cleaning operations performed
+- **Validation Results MD:** Summary of validation checks and outcomes
+
+---
+
+## 🧪 Testing
+
+### Stress Testing
+
+Test the system's robustness with intentionally corrupted data:
+
 ```bash
-python main.py run --dataset data/your_data.csv
+python main.py stress-test data/sample_data.csv --messiness 0.5
 ```
 
-## Output Artifacts
-After running the analysis, check the `artifacts/` directory for:
-1. `cleaned_data.csv` - Processed dataset
-2. `cleaning_log.md` - Data cleaning operations performed
-3. `key_insights.json` - Statistical insights
-4. `analysis_report.md` - Comprehensive analysis report
+### Cross-Dataset Testing
 
-=======
-# RTGS-AI-Analyst-Project
+Validate performance across multiple domains:
+
+```bash
+python main.py cross-test
+```
+
+---
+
+## 🔮 Future Enhancements
+
+- Support for additional file formats (Excel, JSON, Parquet)
+- Advanced visualization customization
+- Real-time collaboration features
+- Export to BI tools (Tableau, Power BI)
+- Automated report scheduling
+- Custom validation rule creation
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---

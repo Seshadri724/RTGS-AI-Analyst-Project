@@ -17,6 +17,20 @@ class AnalystAgent:
     def __init__(self):
         self.system_prompt = self._create_system_prompt()
         self.validation_manager = ValidationManager()
+    def get_analysis_summary(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a UI-friendly summary of analysis results"""
+        cleaned_df = results["cleaned_data"]
+        return {
+            "dataset_name": results.get("dataset_name", "unknown"),
+            "original_shape": results.get("original_shape", (0, 0)),
+            "cleaned_shape": cleaned_df.shape,
+            "validation_passed": len([r for r in results["validation_results"] if "✅" in r]),
+            "validation_failed": len([r for r in results["validation_results"] if "❌" in r]),
+            "hallucination_warnings": len(results.get("hallucination_warnings", [])),
+            "confidence_score": results.get("confidence_score", 0),
+            "cleaning_operations": len(results["cleaning_log"]),
+            "analysis_timestamp": datetime.now().isoformat()
+        }
 
     def _create_system_prompt(self) -> str:
         return """You are an expert data analyst AI. Analyze the dataset and provide a structured, professional report.
@@ -410,9 +424,11 @@ Please tailor your analysis to account for these data quality factors.
         if df.duplicated().sum() > 0:
             operations.append({"action": "drop_duplicates"})
         return operations
+    
 
     def _suggest_fill_value(self, series: pd.Series) -> Any:
         """Suggest a fill value for missing data."""
         if pd.api.types.is_numeric_dtype(series):
             return series.median()
         return series.mode()[0] if not series.mode().empty else "Unknown"
+    

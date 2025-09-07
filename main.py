@@ -12,11 +12,40 @@ import time
 import json
 from pathlib import Path
 import random
+import subprocess
 
 app = typer.Typer()
 console = Console()
 validation_manager = ValidationManager()
 
+# ---------------------------
+# New UI Command
+# ---------------------------
+@app.command()
+def ui(
+    port: int = typer.Option(8501, help="Port to run the UI on"),
+    host: str = typer.Option("localhost", help="Host to run the UI on")
+):
+    """Launch the Streamlit web UI"""
+    console.print(Panel.fit("🌐 Launching Web UI", style="blue"))
+    console.print(f"📱 UI will be available at: http://{host}:{port}")
+    console.print("🛑 Press Ctrl+C to stop the server")
+
+    try:
+        subprocess.run([
+            "streamlit", "run", "app.py",
+            "--server.port", str(port),
+            "--server.address", host,
+            "--theme.base", "light"
+        ], check=True)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]⚠️  UI server stopped[/yellow]")
+    except Exception as e:
+        console.print(f"[red]❌ Failed to start UI: {e}[/red]")
+
+# ---------------------------
+# Run Command
+# ---------------------------
 @app.command()
 def run(
     dataset: Path = typer.Argument("data/sample_data.csv", help="Path to the dataset to analyze."),
@@ -120,6 +149,9 @@ def run(
     else:
         console.print("[red]❌ No chunks were successfully processed. No artifacts generated.[/red]")
 
+# ---------------------------
+# Stress Test Command
+# ---------------------------
 @app.command()
 def stress_test(
     dataset: Path = typer.Argument("data/sample_data.csv", help="Path to the dataset to stress test."),
@@ -151,6 +183,9 @@ def stress_test(
     console.print(Panel.fit("✅ Stress Test Complete!", style="green"))
     console.print(f"Results saved to: {output_dir}")
 
+# ---------------------------
+# Cross Test Command
+# ---------------------------
 @app.command()
 def cross_test(
     data_dir: Path = typer.Option("data", help="Directory containing multiple datasets to test.")
@@ -173,6 +208,9 @@ def cross_test(
         for msg in messages:
             console.print(f"  {msg}")
 
+# ---------------------------
+# Inspect Command
+# ---------------------------
 @app.command()
 def inspect(dataset: Path = typer.Argument("data/sample_data.csv", help="Path to the dataset to inspect.")):
     if not dataset.is_file():
@@ -187,6 +225,9 @@ def inspect(dataset: Path = typer.Argument("data/sample_data.csv", help="Path to
     console.print("\n[bold]Sample data:[/bold]")
     console.print(df.head(3))
 
+# ---------------------------
+# Build Comprehensive Report Helper
+# ---------------------------
 def _build_comprehensive_report(dataset_name, cleaning_logs, llm_reports, 
                                validation_results, hallucination_warnings, consistency_warnings):
     """Build a comprehensive report with all validation information"""
@@ -218,5 +259,8 @@ def _build_comprehensive_report(dataset_name, cleaning_logs, llm_reports,
     
     return report
 
+# ---------------------------
+# Main Entry Point
+# ---------------------------
 if __name__ == "__main__":
     app()
