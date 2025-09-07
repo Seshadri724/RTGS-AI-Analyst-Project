@@ -100,6 +100,7 @@ data-agnostic-analyst/
 │   ├── tools.py                # Data loading and utility functions
 │   └── validation_manager.py   # Data validation and integrity checks
 ├── stress_test/            # Stress test results
+├── test_data/              # Test datasets
 ├── app.py                  # Streamlit application
 ├── main.py                 # CLI interface
 └── requirements.txt        # Python dependencies
