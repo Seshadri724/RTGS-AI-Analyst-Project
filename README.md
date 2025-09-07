@@ -17,6 +17,19 @@ A robust, AI-powered data analysis tool that automatically cleans, validates, an
 
 ## 🚀 Quick Start
 
+**Agent Architecture:** Explain how AnalystAgent, ValidationManager, and Streamlit UI work together
+
+**Models:** Google Gemini 2.0 Flash (cloud-based)
+
+**Third-party:** Streamlit, Plotly, Google AI Studio API
+
+**Installation:** Already covered in requirements.txt
+
+**Run Command:** python main.py run data/sample_data.csv , python main.py ui
+
+**Outputs:** Artifacts in /artifacts/ folder
+
+
 ### Prerequisites
 
 - Python 3.8+
