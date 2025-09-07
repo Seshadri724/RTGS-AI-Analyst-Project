@@ -21,7 +21,7 @@ validation_manager = ValidationManager()
 def run(
     dataset: Path = typer.Argument("data/sample_data.csv", help="Path to the dataset to analyze."),
     output_dir: Path = typer.Option("artifacts", help="Directory to save the analysis artifacts."),
-    chunk_size: int = typer.Option(1000, help="Number of rows to process in each batch to avoid rate limits.")
+    chunk_size: int = typer.Option(4000, help="Number of rows to process in each batch to avoid rate limits.")
 ):
     console.print(Panel.fit("🚀 Starting Data-Agnostic Analysis", style="blue"))
 
@@ -33,7 +33,7 @@ def run(
     dataset_name = dataset.name
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    chunk_size = min(chunk_size, 2000)
+    chunk_size = min(chunk_size, 8000)
     chunks = np.array_split(df, max(1, len(df) // chunk_size + 1))
     console.print(f"✅ Loaded dataset with shape: {df.shape}. Processing in {len(chunks)} chunks.")
 
@@ -161,7 +161,7 @@ def cross_test(
     dataset_paths = {
         "agriculture": data_dir / "agriculture_data.csv",
         "transport": data_dir / "transport_data.csv",
-        "health": data_dir / "weather_data.csv",
+        "weather": data_dir / "weather_data.csv",
         "education": data_dir / "education_data.csv",
     }
     

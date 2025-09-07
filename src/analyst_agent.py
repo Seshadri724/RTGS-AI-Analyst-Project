@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 import time
 import random
+import re
 import numpy as np
 from typing import Dict, Any, List, Tuple
 from src.config import config
@@ -18,9 +19,165 @@ class AnalystAgent:
         self.validation_manager = ValidationManager()
 
     def _create_system_prompt(self) -> str:
-        return """You are an expert data analyst AI. Analyze ANY dataset and provide a structured, professional report.
-        IMPORTANT: Only report insights that are actually supported by the data. Do not make up or assume information.
-        If certain analyses aren't possible with the available data, clearly state this limitation."""
+        return """You are an expert data analyst AI. Analyze the dataset and provide a structured, professional report.
+
+CRITICAL INSTRUCTIONS:
+1. **ONLY REPORT WHAT THE DATA SHOWS** - Never assume, infer, or make up information
+2. **BE SPECIFIC ABOUT LIMITATIONS** - If the data doesn't support certain analyses, say so explicitly
+3. **USE QUALIFIED LANGUAGE** - Instead of "proves" use "suggests", instead of "always" use "often"
+4. **CITE DATA SOURCES** - Reference specific columns and statistics from the provided context
+5. **AVOID ABSOLUTES** - No "all", "every", "never", "always" - use "many", "some", "tends to"
+6. **FLAG UNCERTAINTY** - Explicitly state when conclusions are tentative or based on limited data
+
+EXAMPLE OF BAD RESPONSE: "The data proves that all customers prefer product X"
+EXAMPLE OF GOOD RESPONSE: "The data suggests many customers in the sample prefer product X (65%), but this is based on limited demographic information"
+
+If you cannot make a confident statement due to data limitations, say: "The available data does not support strong conclusions about [topic]"
+"""
+
+    def _filter_context_for_safety(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove or modify context elements that often cause hallucinations"""
+        safe_context = context.copy()
+        
+        # Remove very small sample data that might lead to overgeneralization
+        if safe_context.get('shape', (0, 0))[0] < 50:  # Small dataset
+            safe_context['sample_data'] = "Dataset too small for detailed examples"
+        
+        # Simplify correlations for small datasets
+        insights = safe_context.get('basic_insights', {})
+        if insights.get('dataset_overview', {}).get('shape', (0, 0))[0] < 100:
+            if 'correlations' in insights:
+                insights['correlations'] = "Correlation analysis limited by small sample size"
+        
+        # Add data quality warnings to context
+        missing_percent = insights.get('missing_percent', {})
+        high_missing_cols = {col: pct for col, pct in missing_percent.items() if pct > 20}
+        
+        if high_missing_cols:
+            safe_context['data_quality_warnings'] = {
+                'high_missing_values': high_missing_cols,
+                'message': 'Conclusions involving these columns should be treated with caution due to high missing data rates'
+            }
+        
+        return safe_context
+
+    def _assess_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Assess the quality of the dataset"""
+        shape = df.shape
+        missing_percent = (df.isnull().mean() * 100).round(2).to_dict()
+        duplicate_rows = df.duplicated().sum()
+        
+        quality_score = 10.0
+        major_limitations = []
+        recommended_caution = "Proceed with standard analysis"
+        
+        if shape[0] < 100:
+            quality_score -= 2.0
+            major_limitations.append("Small sample size")
+            recommended_caution = "Use caution with generalizability"
+        if any(pct > 20 for pct in missing_percent.values()):
+            quality_score -= 1.5
+            major_limitations.append("High missing data rates")
+            recommended_caution = "Validate findings with additional data"
+        if duplicate_rows > 0:
+            quality_score -= 1.0
+            major_limitations.append("Duplicate entries detected")
+            recommended_caution = "Review for data integrity issues"
+        
+        return {
+            'sample_size': shape[0],
+            'quality_score': max(1.0, quality_score),
+            'major_limitations': major_limitations,
+            'recommended_caution': recommended_caution
+        }
+
+    def _post_process_analysis(self, analysis_report: str, insights: Dict[str, Any]) -> str:
+        """Clean up common hallucination patterns in the final report"""
+        
+        # Remove absolute statements
+        absolute_patterns = [
+            (r'\b(all|every|each|always|never|none)\b', 'many'),
+            (r'\b(proves|definitely|certainly|undoubtedly)\b', 'suggests'),
+            (r'\b(perfect|complete|total|absolute)\b', 'substantial')
+        ]
+        
+        for pattern, replacement in absolute_patterns:
+            analysis_report = re.sub(pattern, replacement, analysis_report, flags=re.IGNORECASE)
+        
+        # Add data quality disclaimer
+        disclaimer = """
+        
+## Data Quality Disclaimer
+This analysis is based on the provided dataset and may be limited by:
+- Sample size and representativeness
+- Data completeness and accuracy
+- Measurement limitations in the original data collection
+
+Conclusions should be validated with additional data and domain expertise.
+"""
+        
+        return analysis_report + disclaimer
+
+    def detect_hallucinations(self, analysis_report: str, actual_insights: Dict[str, Any]) -> List[str]:
+        """More sophisticated hallucination detection"""
+        warnings = []
+        report_lower = analysis_report.lower()
+        
+        # 1. Check for statistical impossibilities
+        stats = actual_insights.get('summary_statistics', {})
+        for col, col_stats in stats.items():
+            if 'count' in col_stats:
+                # Check for percentages that don't make sense
+                percent_matches = re.findall(rf'{col}.*?(\d+\.?\d*)%', report_lower)
+                for match in percent_matches:
+                    try:
+                        percent = float(match)
+                        if percent > 100 or percent < 0:
+                            warnings.append(f"Impossible percentage for {col}: {percent}%")
+                    except:
+                        pass
+        
+        # 2. Check for claims about non-existent correlations
+        if 'correlations' not in actual_insights:
+            correlation_phrases = ['correlation', 'relationship between', 'associated with']
+            for phrase in correlation_phrases:
+                if phrase in report_lower:
+                    warnings.append(f"Mentioned {phrase} but no correlation data available")
+        
+        # 3. Check for overgeneralization from small samples
+        shape = actual_insights.get('dataset_overview', {}).get('shape', (0, 0))
+        if shape[0] < 100:  # Small sample
+            generalization_phrases = ['all', 'every', 'always', 'never']
+            for phrase in generalization_phrases:
+                if phrase in report_lower:
+                    warnings.append(f"Overgeneralization from small sample: '{phrase}'")
+        
+        return warnings
+
+    def _calculate_confidence_score(self, analysis_report: str, insights: Dict[str, Any]) -> float:
+        """Calculate confidence score based on data quality and report content"""
+        score = 10.0  # Start with perfect score
+        
+        # Penalize for small sample size
+        shape = insights.get('dataset_overview', {}).get('shape', (0, 0))
+        if shape[0] < 100:
+            score -= 2.0
+        elif shape[0] < 30:
+            score -= 4.0
+        
+        # Penalize for high missing data
+        missing_percent = insights.get('missing_percent', {})
+        high_missing = any(pct > 20 for pct in missing_percent.values())
+        if high_missing:
+            score -= 1.5
+        
+        # Penalize for absolute language
+        absolute_words = ['all', 'every', 'always', 'never', 'proves', 'definitely']
+        for word in absolute_words:
+            if word in analysis_report.lower():
+                score -= 0.5
+        
+        return max(1.0, score)  # Don't go below 1
 
     def analyze(self, df: pd.DataFrame, dataset_name: str) -> Dict[str, Any]:
         """Main analysis method with validation."""
@@ -54,9 +211,24 @@ class AnalystAgent:
             "validation_results": validation_results
         }
 
-        context = self._truncate_large_data(context)
+        # Enhance context with safety filtering and quality assessment
+        context = self._filter_context_for_safety(context)
+        data_quality = self._assess_data_quality(cleaned_df)
+        context['data_quality_assessment'] = data_quality
+        
+        # Build prompt with data quality assessment
+        prompt_addition = f"""
+        
+DATA QUALITY ASSESSMENT:
+- Sample size: {data_quality['sample_size']}
+- Data quality score: {data_quality['quality_score']}/10
+- Major limitations: {', '.join(data_quality['major_limitations'])}
+- Recommended caution: {data_quality['recommended_caution']}
 
-        prompt = self._build_prompt(context)
+Please tailor your analysis to account for these data quality factors.
+"""
+        context = self._truncate_large_data(context)
+        prompt = self._build_prompt(context) + prompt_addition
 
         headers = {"Content-Type": "application/json"}
         payload = {
@@ -76,8 +248,9 @@ class AnalystAgent:
                 logger.error(f"API analysis failed: {e}")
                 analysis_report = self._generate_fallback_analysis(cleaned_df, context)
 
-        # Check for hallucinations
-        hallucinations = self.validation_manager.detect_hallucinations(analysis_report, insights)
+        # Post-process and detect hallucinations
+        analysis_report = self._post_process_analysis(analysis_report, insights)
+        hallucinations = self.detect_hallucinations(analysis_report, insights)
         if hallucinations:
             logger.warning(f"Potential hallucinations detected: {hallucinations}")
             analysis_report += f"\n\n## Validation Notes\nPotential issues detected:\n" + "\n".join(f"- {h}" for h in hallucinations)
@@ -96,6 +269,10 @@ class AnalystAgent:
         if consistency_warnings:
             logger.warning(f"Consistency issues: {consistency_warnings}")
             results["consistency_warnings"] = consistency_warnings
+
+        # Calculate and add confidence score
+        confidence_score = self._calculate_confidence_score(analysis_report, insights)
+        results["confidence_score"] = confidence_score
 
         return results
 

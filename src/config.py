@@ -23,7 +23,7 @@ class Config:
         # API configuration
         self.MAX_RETRIES = 3
         self.RETRY_DELAY_BASE = 2
-        self.CHUNK_SIZE = 1000
+        self.CHUNK_SIZE = 4000
 
         # Validation thresholds
         self.VALIDATION_WARNING_THRESHOLD = 0.1  # 10% variation allowed
