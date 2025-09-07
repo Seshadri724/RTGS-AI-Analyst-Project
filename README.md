@@ -49,9 +49,9 @@ pip install -r requirements.txt
 ```
 
 ### 4. Configure Environment
-Create a `.env` file in the project root with your OpenAI API key:
+Create a `.env` file in the project root with your GOOGLE AI STUDIO API KEY:
 ```env
-OPENAI_API_KEY=your_api_key_here
+GOOGLE_AI_STUDIO_API_KEY=your_api_key_here
 ```
 
 ### 5. Add Your Dataset
