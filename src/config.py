@@ -19,6 +19,11 @@ class Config:
         self.DATA_DIR = os.path.join(self.BASE_DIR, "data")
         self.ARTIFACTS_DIR = os.path.join(self.BASE_DIR, "artifacts")
 
+        # API configuration
+        self.MAX_RETRIES = 3
+        self.RETRY_DELAY_BASE = 2  # seconds
+        self.CHUNK_SIZE = 1000  # Reduced from 10000
+
         os.makedirs(self.ARTIFACTS_DIR, exist_ok=True)
 
 config = Config()
