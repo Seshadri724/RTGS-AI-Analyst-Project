@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 from pathlib import Path
 
-from analyst_agent import AnalystAgent   # your analysis engine
+from src.analyst_agent import AnalystAgent   # your analysis engine
 
 
 # -------------------------
