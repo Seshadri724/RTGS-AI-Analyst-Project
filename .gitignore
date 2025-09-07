@@ -3,11 +3,7 @@ venv/
 .env
 .env.local
 
-# Artifacts
-artifacts/
-*.csv
-*.log
-*.png
+
 
 # Python
 __pycache__/
